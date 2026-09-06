@@ -16,7 +16,6 @@ from services.plan_manager import PlanManager
 try:
     from zoneinfo import ZoneInfo
     IST = ZoneInfo("Asia/Kolkata")
-    # Quick probe to test if the key actually loads in Android CPython
     _ = datetime.now(IST)
 except Exception:
     IST = timezone(timedelta(hours=5, minutes=30))
@@ -26,6 +25,21 @@ LOCAL_TZ = IST
 
 def get_current_date_str():
     return datetime.now(IST).strftime("%Y-%m-%d")
+
+
+# Android UI thread helper to prevent CalledFromWrongThreadException
+if platform == 'android':
+    from jnius import autoclass # type: ignore
+    from android.runnable import run_on_ui_thread # type: ignore
+
+    @run_on_ui_thread
+    def set_secure_window():
+        PythonActivity = autoclass('org.kivy.android.PythonActivity')
+        WindowManager = autoclass('android.view.WindowManager$LayoutParams')
+        PythonActivity.mActivity.getWindow().addFlags(WindowManager.FLAG_SECURE)
+else:
+    def set_secure_window():
+        pass
 
 
 class TrendLineChart(Widget):
@@ -91,11 +105,10 @@ class VitalityApp(App):
 
     def build(self):
         if platform == 'android':
-            from jnius import autoclass
+            from jnius import autoclass # type: ignore
             PythonActivity = autoclass('org.kivy.android.PythonActivity')
-            WindowManager = autoclass('android.view.WindowManager$LayoutParams')
-            # Security: Hardware-level screen blanking in app switcher & screenshot block
-            PythonActivity.mActivity.getWindow().addFlags(WindowManager.FLAG_SECURE)
+            # Hardware-level screen blanking scheduled safely on Android UI thread
+            set_secure_window()
             base_dir = PythonActivity.mActivity.getFilesDir().getAbsolutePath()
         else:
             base_dir = os.path.expanduser("~/.vitality_tracker_mobile")
@@ -164,8 +177,8 @@ class VitalityApp(App):
             return
 
         try:
-            from jnius import autoclass
-            from android.activity import bind
+            from jnius import autoclass # type: ignore
+            from android.activity import bind # type: ignore
 
             Intent = autoclass('android.content.Intent')
             MediaStore = autoclass('android.provider.MediaStore')
@@ -219,6 +232,7 @@ class VitalityApp(App):
             self.status_text = "Google AI Key validated and active!"
         else:
             self.status_text = "Verification failed: Check key or network connection."
+
 
 if __name__ == '__main__':
     VitalityApp().run()
