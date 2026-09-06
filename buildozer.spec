@@ -14,7 +14,7 @@ fullscreen = 0
 # Android Architecture Targets
 android.api = 33
 android.minapi = 26
-android.ndk = 25b
+android.ndk = 26b
 android.build_tools_version = 34.0.0
 android.accept_sdk_license = True
 android.archs = arm64-v8a
@@ -26,11 +26,7 @@ android.permissions = INTERNET,ACCESS_NETWORK_STATE
 android.manifest.uses_cleartext_traffic = false
 android.allow_backup = false
 
-# Skip buggy vector graphics recipe that caused the IndexError
-android.blacklist_recipes = libthorvg
-
-# Use p4a develop branch (fixes OpenSSL, aidl, and hostpython3 build errors with NDK 25b)
-p4a.branch = develop
+p4a.branch = master
 
 [buildozer]
 log_level = 2
