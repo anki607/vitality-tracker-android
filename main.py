@@ -1,6 +1,5 @@
 import os
 from datetime import datetime, timezone, timedelta
-from zoneinfo import ZoneInfo
 from kivy.app import App
 from kivy.lang import Builder
 from kivy.utils import platform
@@ -13,12 +12,21 @@ from services.database import DatabaseManager
 from services.ai_engine import AIEngine
 from services.plan_manager import PlanManager
 
+# Safe fallback for Android (UTC+5:30)
 try:
     from zoneinfo import ZoneInfo
-    LOCAL_TZ = ZoneInfo("Asia/Kolkata")
+    IST = ZoneInfo("Asia/Kolkata")
+    # Quick probe to test if the key actually loads in Android CPython
+    _ = datetime.now(IST)
 except Exception:
-    # Asia/Kolkata is UTC+5:30
-    LOCAL_TZ = timezone(timedelta(hours=5, minutes=30))
+    IST = timezone(timedelta(hours=5, minutes=30))
+
+LOCAL_TZ = IST
+
+
+def get_current_date_str():
+    return datetime.now(IST).strftime("%Y-%m-%d")
+
 
 class TrendLineChart(Widget):
     """Canvas-rendered vector chart replacing heavy Plotly dependencies."""
@@ -35,7 +43,7 @@ class TrendLineChart(Widget):
             max_y = max(max(points), target_val) + 10
             range_y = max_y - min_y if max_y != min_y else 1.0
 
-            # Green dashed baseline for 100 mg/dL optimal target[cite: 1]
+            # Green dashed baseline for 100 mg/dL optimal target
             target_norm = (target_val - min_y) / range_y
             Color(0.2, 0.8, 0.3, 0.6)
             Line(
@@ -56,16 +64,18 @@ class TrendLineChart(Widget):
                 Ellipse(pos=(px - 3, py - 3), size=(6, 6))
             Line(points=pts, width=1.8)
 
+
 class VitalityRoot(BoxLayout):
     pass
 
+
 class VitalityApp(App):
     status_text = StringProperty("Ready")
-    selected_date = StringProperty(datetime.now(IST).strftime("%Y-%m-%d")) #[cite: 1]
-    current_sugar_str = StringProperty("250.0") #[cite: 1]
-    current_weight_str = StringProperty("78.5") #[cite: 1]
+    selected_date = StringProperty(get_current_date_str())
+    current_sugar_str = StringProperty("250.0")
+    current_weight_str = StringProperty("78.5")
 
-    # Daily checklist flags[cite: 1]
+    # Daily checklist flags
     chk_ex_m = BooleanProperty(False)
     chk_ex_e = BooleanProperty(False)
     chk_sol_m = BooleanProperty(False)
