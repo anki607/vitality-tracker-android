@@ -1,5 +1,5 @@
 import os
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from zoneinfo import ZoneInfo
 from kivy.app import App
 from kivy.lang import Builder
@@ -13,7 +13,12 @@ from services.database import DatabaseManager
 from services.ai_engine import AIEngine
 from services.plan_manager import PlanManager
 
-IST = ZoneInfo("Asia/Kolkata") #[cite: 1]
+try:
+    from zoneinfo import ZoneInfo
+    LOCAL_TZ = ZoneInfo("Asia/Kolkata")
+except Exception:
+    # Asia/Kolkata is UTC+5:30
+    LOCAL_TZ = timezone(timedelta(hours=5, minutes=30))
 
 class TrendLineChart(Widget):
     """Canvas-rendered vector chart replacing heavy Plotly dependencies."""
