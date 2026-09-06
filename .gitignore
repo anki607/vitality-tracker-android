@@ -1,0 +1,25 @@
+# Virtual environments
+venv/
+venv_desktop/
+ENV/
+env/
+
+# Buildozer & Android build outputs
+.buildozer/
+bin/
+*.apk
+*.aab
+
+# Bytecode & caches
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Local database & config overrides
+vitality.db
+ai_plan_overrides.json
+
+# OS specific files
+.DS_Store
+Thumbs.db

@@ -1,0 +1,221 @@
+#:kivy 2.3.0
+
+<VitalityRoot>:
+    orientation: 'vertical'
+    canvas.before:
+        Color:
+            rgba: 0.07, 0.09, 0.11, 1
+        Rectangle:
+            pos: self.pos
+            size: self.size
+
+    # Top Header
+    BoxLayout:
+        size_hint_y: None
+        height: '46dp'
+        padding: [14, 8]
+        canvas.before:
+            Color:
+                rgba: 0.11, 0.14, 0.18, 1
+            Rectangle:
+                pos: self.pos
+                size: self.size
+        Label:
+            text: "🎯 Vitality & Glycemic Tracker"
+            bold: True
+            font_size: '16sp'
+            halign: 'left'
+            valign: 'middle'
+            text_size: self.size
+
+    # Content Scroll Area
+    ScrollView:
+        do_scroll_x: False
+        BoxLayout:
+            orientation: 'vertical'
+            size_hint_y: None
+            height: self.minimum_height
+            padding: 14
+            spacing: 12
+
+            # Metrics Input Section
+            Label:
+                text: "Target Log Date: " + app.selected_date
+                font_size: '14sp'
+                color: 0.2, 0.8, 0.9, 1
+                size_hint_y: None
+                height: '24dp'
+                halign: 'left'
+                text_size: self.size
+
+            BoxLayout:
+                size_hint_y: None
+                height: '42dp'
+                spacing: 8
+                TextInput:
+                    id: txt_sugar
+                    text: app.current_sugar_str
+                    hint_text: "Glucose (mg/dL)"
+                    input_filter: 'float'
+                    multiline: False
+                TextInput:
+                    id: txt_weight
+                    text: app.current_weight_str
+                    hint_text: "Weight (kg)"
+                    input_filter: 'float'
+                    multiline: False
+
+            # Compliance Checklist
+            GridLayout:
+                cols: 2
+                size_hint_y: None
+                height: '110dp'
+                spacing: 4
+                CheckBox:
+                    active: app.chk_ex_m
+                    on_active: app.chk_ex_m = self.active
+                    size_hint_x: 0.18
+                Label:
+                    text: "Exermet (Morning)"
+                    halign: 'left'
+                    text_size: self.size
+                CheckBox:
+                    active: app.chk_ex_e
+                    on_active: app.chk_ex_e = self.active
+                    size_hint_x: 0.18
+                Label:
+                    text: "Exermet (Evening)"
+                    halign: 'left'
+                    text_size: self.size
+                CheckBox:
+                    active: app.chk_sol_m
+                    on_active: app.chk_sol_m = self.active
+                    size_hint_x: 0.18
+                Label:
+                    text: "15-Min Soleus Morning"
+                    halign: 'left'
+                    text_size: self.size
+                CheckBox:
+                    active: app.chk_pran
+                    on_active: app.chk_pran = self.active
+                    size_hint_x: 0.18
+                Label:
+                    text: "Pranayama (Bhramari)"
+                    halign: 'left'
+                    text_size: self.size
+
+            TextInput:
+                id: txt_notes
+                hint_text: "Food diary, exceptions, or notes..."
+                size_hint_y: None
+                height: '60dp'
+
+            # Google Photos Content-URI Integration
+            BoxLayout:
+                size_hint_y: None
+                height: '42dp'
+                spacing: 8
+                Button:
+                    text: "📸 Link Google Photo"
+                    background_color: 0.25, 0.35, 0.45, 1
+                    on_press: app.trigger_photo_picker()
+                Label:
+                    text: app.image_uri_indicator
+                    font_size: '12sp'
+                    color: 0.4, 0.8, 0.5, 1
+                    size_hint_x: 0.6
+
+            Button:
+                text: "🔍 Scan Linked Meal with AI"
+                size_hint_y: None
+                height: '38dp'
+                background_color: 0.2, 0.5, 0.6, 1
+                on_press: app.analyze_linked_photo()
+
+            Button:
+                text: "💾 Commit Entry to Local Storage"
+                size_hint_y: None
+                height: '46dp'
+                background_color: 0.15, 0.65, 0.35, 1
+                on_press: app.commit_entry(txt_sugar.text, txt_weight.text, txt_notes.text)
+
+            # Glucose Canvas Graph
+            Label:
+                text: "📈 Waking Glucose Velocity (Green Line = 100 mg/dL Target)"
+                font_size: '13sp'
+                color: 0.8, 0.8, 0.8, 1
+                size_hint_y: None
+                height: '24dp'
+
+            TrendLineChart:
+                id: chart
+                size_hint_y: None
+                height: '130dp'
+
+            # Protocol Section
+            Label:
+                text: "🗓️ Today's Clinical Schedule"
+                font_size: '14sp'
+                bold: True
+                size_hint_y: None
+                height: '24dp'
+
+            Label:
+                text: app.plan_text
+                size_hint_y: None
+                height: '130dp'
+                font_size: '12sp'
+                color: 0.85, 0.85, 0.85, 1
+                text_size: self.width, None
+
+            # AI Clinical Consultation Section
+            Label:
+                text: "🤖 Endocrine AI Audit"
+                font_size: '14sp'
+                bold: True
+                size_hint_y: None
+                height: '24dp'
+
+            Button:
+                text: "Generate AI Action Audit"
+                size_hint_y: None
+                height: '40dp'
+                background_color: 0.1, 0.5, 0.7, 1
+                on_press: app.trigger_ai_report()
+
+            Label:
+                text: app.ai_report_output
+                size_hint_y: None
+                height: '130dp'
+                font_size: '12sp'
+                text_size: self.width, None
+                color: 0.9, 0.9, 0.7, 1
+
+            # Settings: BYOK Section
+            Label:
+                text: "⚙️ Google AI Free-Tier (Personal BYOK Setup)"
+                font_size: '13sp'
+                size_hint_y: None
+                height: '22dp'
+
+            BoxLayout:
+                size_hint_y: None
+                height: '40dp'
+                spacing: 6
+                TextInput:
+                    id: txt_key
+                    hint_text: "Paste Key (AIzaSy...)"
+                    password: True
+                    multiline: False
+                Button:
+                    text: "Save Key"
+                    size_hint_x: 0.35
+                    on_press: app.save_api_key(txt_key.text)
+
+    # Persistent Bottom Status Line
+    Label:
+        text: app.status_text
+        font_size: '12sp'
+        color: 0.2, 0.8, 1, 1
+        size_hint_y: None
+        height: '26dp'
