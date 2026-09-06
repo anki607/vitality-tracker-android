@@ -13,7 +13,6 @@ class DatabaseManager:
     def _init_db(self):
         with self._get_connection() as conn:
             cursor = conn.cursor()
-            # Daily logs table with UNIQUE constraint on log_date for upserts
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS daily_logs (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -31,7 +30,6 @@ class DatabaseManager:
                     image_uri TEXT
                 )
             ''')
-            # App configuration table (stores BYOK Gemini keys)
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS app_config (
                     key TEXT PRIMARY KEY,

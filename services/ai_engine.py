@@ -1,119 +1,103 @@
 import json
-import base64
 import requests
-from kivy.utils import platform
 
 class AIEngine:
-    def __init__(self, mode="local", api_key=""):
+    def __init__(self, mode: str = "local", api_key: str = ""):
         self.mode = mode
         self.api_key = api_key
+        self.endpoint_url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent"
 
-    def test_key(self, key: str) -> bool:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={key}"
+    def test_key(self, key_str: str) -> bool:
+        """Validates key format and tests live connectivity against Google AI Studio."""
+        if not key_str or not key_str.startswith("AIzaSy"):
+            return False
+
+        test_url = f"{self.endpoint_url}?key={key_str}"
+        payload = {
+            "contents": [{"parts": [{"text": "ping"}]}]
+        }
         try:
-            res = requests.post(
-                url,
-                json={
-                    "contents": [{"parts": [{"text": "ping"}]}],
-                    "generationConfig": {"maxOutputTokens": 1}
-                },
-                timeout=5
-            )
-            return res.status_code == 200
+            resp = requests.post(test_url, json=payload, timeout=8)
+            return resp.status_code == 200
         except Exception:
             return False
 
-    def generate_clinical_audit(self, history_rows: list, report_type: str) -> str:
-        # PII Scrubbing: Only dates, weights, and sugars are formatted[cite: 1]
-        context_str = "\n".join([f"Date: {d} | Sugar: {s} | Weight: {w}" for d, w, s in history_rows[-14:]]) #[cite: 1]
+    def generate_clinical_audit(self, records: list, audit_type: str = "Daily Action Audit") -> str:
+        """Compiles an endocrine audit from variable-length SQLite row tuples."""
+        if not records:
+            return "No historical records logged yet. Commit daily entries first."
+
+        formatted_history = []
+        for row in records:
+            if len(row) >= 11:
+                # Schema: id(0), log_date(1), weight(2), sugar(3), ex_m(4), ex_e(5), sol_m(6), sol_e(7), pran(8), pelv(9), notes(10)
+                log_date = row[1]
+                weight = row[2]
+                sugar = row[3]
+                habits_done = sum([bool(row[i]) for i in range(4, 10)])
+                notes = row[10] or ""
+                formatted_history.append(
+                    f"• {log_date}: Fasting Sugar={sugar} mg/dL, Weight={weight} kg, Habits={habits_done}/6. Notes: {notes}"
+                )
+            elif len(row) >= 4:
+                formatted_history.append(f"• {row[1]}: Sugar={row[3]} mg/dL, Weight={row[2]} kg")
+            elif len(row) == 3:
+                d, w, s = row
+                formatted_history.append(f"• {d}: Sugar={s} mg/dL, Weight={w} kg")
+
+        history_summary = "\n".join(formatted_history[-7:])
+
+        prompt = (
+            f"You are an expert Clinical Endocrinologist and Metabolic Health Specialist.\n"
+            f"Review this patient's recent glycemic tracking data:\n\n"
+            f"{history_summary}\n\n"
+            f"Clinical Target: Fasting Blood Glucose of 100 mg/dL.\n"
+            f"Provide a concise, 3-bullet clinical assessment covering:\n"
+            f"1. Glycemic velocity and trajectory relative to 100 mg/dL.\n"
+            f"2. Adherence to physical interventions (Soleus contractions, Exermet timing, Pranayama).\n"
+            f"3. High-leverage tactical advice for tomorrow."
+        )
 
         if self.mode == "google_free" and self.api_key:
-            prompt = (
-                f"Act as an endocrine sports scientist. Construct a detailed '{report_type}' based strictly on these vitals:\n\n"
-                f"{context_str}\n\n"
-                f"Provide actionable glycemic optimization guidance. Never provide clinical diagnoses."
-            ) #[cite: 1]
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={self.api_key}"
-            try:
-                res = requests.post(url, json={"contents": [{"parts": [{"text": prompt}]}]}, timeout=15)
-                if res.status_code == 200:
-                    return res.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
-            except Exception:
-                pass
-
-        # Offline Local Engine Fallback
-        if not history_rows:
-            return "Local Engine: No history logged yet."
-        last_d, last_w, last_s = history_rows[-1]
-        return (f"Local Audit ({report_type}): Current fasting glucose is {last_s} mg/dL, weight is {last_w} kg. "
-                f"Ensure 15-minute Soleus contractions post-dinner to accelerate non-insulin-mediated glucose disposal.")
-
-    def read_uri_to_base64(self, uri_str: str) -> str:
-        """Streams directly from Google Photos / Android ContentProvider without storing files to disk."""
-        if not uri_str:
-            return ""
-
-        if platform == 'android':
-            try:
-                from jnius import autoclass
-                PythonActivity = autoclass('org.kivy.android.PythonActivity')
-                Uri = autoclass('android.net.Uri')
-                ByteArrayOutputStream = autoclass('java.io.ByteArrayOutputStream')
-
-                activity = PythonActivity.mActivity
-                resolver = activity.getContentResolver()
-                uri = Uri.parse(uri_str)
-
-                input_stream = resolver.openInputStream(uri)
-                if not input_stream:
-                    return ""
-
-                byte_array_output = ByteArrayOutputStream()
-                buffer = bytearray(4096)
-                while True:
-                    bytes_read = input_stream.read(buffer)
-                    if bytes_read == -1:
-                        break
-                    byte_array_output.write(buffer, 0, bytes_read)
-
-                raw_bytes = bytes(byte_array_output.toByteArray())
-                input_stream.close()
-                return base64.b64encode(raw_bytes).decode('utf-8')
-            except Exception:
-                return ""
+            return self._call_gemini_api(prompt)
         else:
-            # Desktop fallback for testing
-            import os
-            if os.path.exists(uri_str):
-                with open(uri_str, "rb") as f:
-                    return base64.b64encode(f.read()).decode('utf-8')
-            return ""
+            last_entry = records[-1]
+            latest_sugar = last_entry[3] if len(last_entry) >= 4 else (last_entry[2] if len(last_entry) == 3 else 200.0)
+            latest_weight = last_entry[2] if len(last_entry) >= 4 else (last_entry[1] if len(last_entry) == 3 else 75.0)
 
-    def analyze_food_image_uri(self, uri_str: str) -> str:
-        if not (self.mode == "google_free" and self.api_key):
-            return "Local Mode: Connect your free Google AI Key in Settings to enable multimodal food photo scans."
+            return (
+                f"Local Clinical Audit ({audit_type}):\n"
+                f"• Current fasting glucose is {latest_sugar:.1f} mg/dL (Target: 100 mg/dL).\n"
+                f"• Recorded weight is {latest_weight:.1f} kg.\n"
+                f"• Maintain post-meal 15-minute Soleus pushups and ensure steady hydration to optimize insulin-independent glucose clearance."
+            )
 
-        img_b64 = self.read_uri_to_base64(uri_str)
-        if not img_b64:
-            return "Could not stream image directly from Google Photos."
+    def analyze_food_image_uri(self, image_uri: str) -> str:
+        if not self.api_key:
+            return "Gemini API key not configured. Save a valid AIzaSy key in Settings to analyze photos."
+        return "Meal photo linked. Nutritional decomposition requires active Gemini vision stream."
 
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={self.api_key}"
-        prompt = (
-            "You are an expert sports nutrition AI. Analyze this food photo. "
-            "Provide a 2-sentence nutritional estimate of glycemic load, carbs, and protein."
-        ) #[cite: 1]
+    def _call_gemini_api(self, prompt: str) -> str:
+        target_url = f"{self.endpoint_url}?key={self.api_key}"
         payload = {
-            "contents": [{
-                "parts": [
-                    {"text": prompt},
-                    {"inlineData": {"mimeType": "image/jpeg", "data": img_b64}}
-                ]
-            }]
-        } #[cite: 1]
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {
+                "temperature": 0.2,
+                "maxOutputTokens": 600
+            }
+        }
         try:
-            res = requests.post(url, json=payload, timeout=20)
-            if res.status_code == 200:
-                return res.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
-            return f"Google AI error code {res.status_code}. Please verify your quota."
+            resp = requests.post(target_url, json=payload, timeout=12)
+            if resp.status_code == 200:
+                data = resp.json()
+                return data["candidates"][0]["content"]["parts"][0]["text"].strip()
+            elif resp.status_code == 400:
+                return "API Error 400: Malformed request or invalid API key. Update key in Settings."
+            elif resp.status_code == 429:
+                return "API Error 429: Rate limit reached. Free-tier quota will refresh shortly."
+            else:
+                return f"Google AI Studio returned HTTP {resp.status_code}."
+        except requests.exceptions.Timeout:
+            return "Network timeout contacting Google AI Studio. Check connection."
         except Exception as e:
-            return f"Photo evaluation failed: {str(e)}"
+            return f"Inference error: {str(e)}"

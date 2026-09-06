@@ -6,7 +6,8 @@ source.dir = .
 source.include_exts = py,png,jpg,kv,atlas,json
 version = 1.0.0
 
-requirements = python3,cython<3.0.0,kivy,requests,urllib3,certifi,charset_normalizer,idna,tzdata
+# Pin Cython strictly below 3.0 inside p4a buildenv and bundle tzdata
+requirements = python3,cython<3.0.0,kivy,requests,urllib3,certifi,charset-normalizer,idna,tzdata
 
 orientation = portrait
 fullscreen = 0

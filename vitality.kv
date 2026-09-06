@@ -45,7 +45,7 @@
             valign: 'middle'
             text_size: self.size
 
-    # Status Bar
+    # Live Status Bar
     Label:
         size_hint_y: None
         height: dp(26)
@@ -82,7 +82,7 @@
                     padding: dp(14)
                     spacing: dp(12)
 
-                    # Calendar Picker Trigger Button
+                    # Native Material Calendar Picker Trigger
                     Button:
                         text: "📅 Target Date:  " + app.selected_date + "  (Tap to Change)"
                         size_hint_y: None
@@ -132,7 +132,7 @@
                                 background_color: 1, 1, 1, 1
                                 padding: [dp(10), dp(10)]
 
-                    # Daily Habit Checklist Card
+                    # Habits Checklist Card
                     BoxLayout:
                         orientation: 'vertical'
                         size_hint_y: None

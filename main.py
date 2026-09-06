@@ -5,15 +5,13 @@ from kivy.lang import Builder
 from kivy.utils import platform
 from kivy.properties import StringProperty, BooleanProperty
 from kivy.uix.boxlayout import BoxLayout
-from kivy.uix.widget import Widget
+from kivy.uix.stencilview import StencilView
 from kivy.uix.popup import Popup
 from kivy.uix.button import Button
 from kivy.uix.textinput import TextInput
 from kivy.uix.label import Label
-from kivy.graphics import (
-    Color, Line, Ellipse, Rectangle,
-    StencilPush, StencilUse, StencilUnUse, StencilPop
-)
+from kivy.clock import Clock
+from kivy.graphics import Color, Line, Ellipse
 
 from services.database import DatabaseManager
 from services.ai_engine import AIEngine
@@ -50,8 +48,8 @@ else:
         pass
 
 
-class TrendLineChart(Widget):
-    """Canvas-rendered vector chart with strict bounding box clipping."""
+class TrendLineChart(StencilView):
+    """Canvas-rendered vector chart with automatic hardware stencil clipping."""
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.bind(pos=self._redraw, size=self._redraw)
@@ -65,7 +63,7 @@ class TrendLineChart(Widget):
 
     def _redraw(self, *args):
         self.canvas.clear()
-        if len(self.cached_points) < 2 or self.width <= 10 or self.height <= 10:
+        if len(self.cached_points) < 2 or self.width <= 20 or self.height <= 20:
             return
 
         pad_x = 24
@@ -78,15 +76,11 @@ class TrendLineChart(Widget):
         range_y = max_y - min_y if max_y != min_y else 1.0
 
         with self.canvas:
-            StencilPush()
-            Rectangle(pos=self.pos, size=self.size)
-            StencilUse()
-
-            # Soft card border
+            # Card Border
             Color(0.85, 0.89, 0.93, 1)
             Line(rectangle=(self.x + 1, self.y + 1, self.width - 2, self.height - 2), width=1.0)
 
-            # Target Baseline (100 mg/dL optimal) - Vivid Emerald Green
+            # Target Baseline (100 mg/dL optimal)
             target_norm = (self.cached_target - min_y) / range_y
             target_y = self.y + pad_y + (target_norm * plot_h)
             Color(0.08, 0.68, 0.42, 0.85)
@@ -97,7 +91,7 @@ class TrendLineChart(Widget):
                 dash_offset=6
             )
 
-            # Glucose Trajectory Line & Points - Deep Medical Cerulean
+            # Trajectory Line & Nodes
             pts = []
             Color(0.12, 0.48, 0.78, 1)
             step_x = plot_w / (len(self.cached_points) - 1)
@@ -109,10 +103,6 @@ class TrendLineChart(Widget):
                 Ellipse(pos=(px - 4, py - 4), size=(8, 8))
 
             Line(points=pts, width=2.2)
-
-            StencilUnUse()
-            Rectangle(pos=self.pos, size=self.size)
-            StencilPop()
 
 
 class VitalityRoot(BoxLayout):
@@ -164,7 +154,7 @@ class VitalityApp(App):
         return self.root_widget
 
     def show_calendar_picker(self):
-        """Spawns native Android DatePickerDialog with dynamic screen-fitting."""
+        """Spawns native Android DatePickerDialog and routes callbacks onto Kivy Clock."""
         try:
             cur_dt = datetime.strptime(self.selected_date, "%Y-%m-%d")
         except Exception:
@@ -182,7 +172,7 @@ class VitalityApp(App):
                 @java_method('(Landroid/widget/DatePicker;III)V')
                 def onDateSet(self, view, year, monthOfYear, dayOfMonth):
                     selected = f"{year:04d}-{monthOfYear + 1:02d}-{dayOfMonth:02d}"
-                    self.callback(selected)
+                    Clock.schedule_once(lambda dt: self.callback(selected), 0)
 
             @run_on_ui_thread
             def launch_native_picker():
@@ -200,7 +190,6 @@ class VitalityApp(App):
 
             launch_native_picker()
         else:
-            # Fallback popup for desktop testing
             box = BoxLayout(orientation='vertical', spacing=10, padding=10)
             txt_in = TextInput(text=self.selected_date, multiline=False, size_hint_y=0.4)
             btn = Button(text="Select", size_hint_y=0.4)
@@ -279,15 +268,14 @@ class VitalityApp(App):
         lines = ["Date         | Sugar | Weight | Habits"]
         lines.append("-" * 46)
         for r in records:
-            # Record fields: id(0), date(1), weight(2), sugar(3), ex_m(4)...
             habits_done = sum([bool(r[i]) for i in range(4, 10)])
             lines.append(f"{r[1]} | {r[3]:>5.1f} | {r[2]:>6.1f} | {habits_done}/6 done")
         self.history_text = "\n".join(lines)
 
     def trigger_photo_picker(self):
-        """Invokes Android Photo Picker for scoped, zero-permission gallery selection."""
+        """Invokes Android Photo Picker for zero-permission gallery selection."""
         if platform != 'android':
-            self.status_text = "Desktop mode: Use Android device for Photo Picker."
+            self.status_text = "Desktop mode: Photo picker requires Android."
             return
 
         try:
@@ -336,14 +324,16 @@ class VitalityApp(App):
         if not k:
             self.status_text = "Error: Key cannot be empty."
             return
-        
-        valid, msg = self.ai.test_key(k)
-        self.status_text = msg
-        if valid:
+
+        is_valid = self.ai.test_key(k)
+        if is_valid:
             self.db.set_config("google_api_key", k)
             self.stored_api_key = k
             self.ai.api_key = k
             self.ai.mode = "google_free"
+            self.status_text = "Google AI Key validated and active!"
+        else:
+            self.status_text = "Verification failed: Check key or network connection."
 
 
 if __name__ == '__main__':
